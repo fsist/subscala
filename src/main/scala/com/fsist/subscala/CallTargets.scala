@@ -10,6 +10,7 @@ object CallTargets {
   type -[A <: CallTargets, B <: CallTargets] <: CallTargets
 
   type None <: CallTargets
+  type All <: CallTargets
 
   type AllMethodsOf[T] <: CallTargets
 }

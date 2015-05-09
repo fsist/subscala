@@ -1,5 +1,6 @@
 package com.fsist.subscala
 
+import scala.annotation.tailrec
 import scala.language.experimental.macros
 import scala.reflect.api.Universe
 
@@ -8,6 +9,17 @@ import scala.reflect.macros.blackbox
 class Restrict(val c: blackbox.Context) {
 
   import c.universe._
+
+  // A wrapper for Type that can be placed in a Set
+  implicit class TypeHolder(val tpe: Type) {
+    override def equals(other: Any): Boolean = other match {
+      case t: Type => tpe =:= t
+      case holder: TypeHolder => tpe =:= holder.tpe
+      case _ => false
+    }
+
+    override def hashCode(): Int = tpe.toString.hashCode
+  }
 
   case class ReifiedSyntax(`if`: Boolean = false, `while`: Boolean = false, apply: Boolean = false, `def`: Boolean = false,
                            abstractClass: Boolean = false, concreteClass: Boolean = false,
@@ -45,14 +57,39 @@ class Restrict(val c: blackbox.Context) {
     )
   }
 
-  case class ReifiedCallTargets(allMethodsOf: Set[Type]) {
-    def plus(other: ReifiedCallTargets): ReifiedCallTargets = ReifiedCallTargets(
-      allMethodsOf.union(other.allMethodsOf)
-    )
+  sealed trait ReifiedCallTargets {
+    def plus(other: ReifiedCallTargets): ReifiedCallTargets
+    def minus(other: ReifiedCallTargets): ReifiedCallTargets
+    def validate(pos: Position, method: MethodSymbol): Unit
+  }
 
-    def minus(other: ReifiedCallTargets): ReifiedCallTargets = ReifiedCallTargets(
-      allMethodsOf.diff(other.allMethodsOf)
-    )
+  object ReifiedCallTargets {
+
+    case object All extends ReifiedCallTargets {
+      override def plus(other: ReifiedCallTargets): ReifiedCallTargets = All
+      override def minus(other: ReifiedCallTargets): ReifiedCallTargets = All
+      override def validate(pos: Position, method: MethodSymbol): Unit = ()
+    }
+
+    case class Some(allMethodsOf: Set[TypeHolder]) extends ReifiedCallTargets {
+      override def plus(other: ReifiedCallTargets): ReifiedCallTargets = other match {
+        case All => All
+        case some: Some => Some(allMethodsOf.union(some.allMethodsOf))
+      }
+
+      override def minus(other: ReifiedCallTargets): ReifiedCallTargets = other match {
+        case All => All
+        case some: Some => Some(allMethodsOf.diff(some.allMethodsOf))
+      }
+
+      override def validate(pos: Position, method: MethodSymbol): Unit = {
+        @tailrec def getOwner(symbol: Symbol): TypeSymbol = if (symbol.isType) symbol.asType else getOwner(symbol.owner)
+        val owner = getOwner(method).toType
+        if (!allMethodsOf.contains(owner)) {
+          c.abort(pos, s"Calling $method of ${owner.typeSymbol.name} is disallowed")
+        }
+      }
+    }
   }
 
   def restrict[T: c.WeakTypeTag, S <: Syntax : c.WeakTypeTag, C <: CallTargets : c.WeakTypeTag](t: Expr[T]): Expr[T] = {
@@ -85,10 +122,11 @@ class Restrict(val c: blackbox.Context) {
   }
 
   def reifyCallTargets(tpe: Type): ReifiedCallTargets = {
-    if (tpe =:= typeOf[CallTargets.None]) ReifiedCallTargets(Set.empty)
+    if (tpe =:= typeOf[CallTargets.None]) ReifiedCallTargets.Some(Set.empty)
+    else if (tpe =:= typeOf[CallTargets.All]) ReifiedCallTargets.All
     else if (tpe <:< typeOf[CallTargets.AllMethodsOf[_]]) {
       val args = tpe.baseType(typeOf[CallTargets.AllMethodsOf[_]].typeSymbol).typeArgs
-      ReifiedCallTargets(Set(args(0)))
+      ReifiedCallTargets.Some(Set(args(0)))
     }
     else if (tpe <:< typeOf[CallTargets.+[_, _]]) {
       val args = tpe.baseType(typeOf[CallTargets.+[_, _]].typeSymbol).typeArgs
@@ -119,8 +157,12 @@ class Restrict(val c: blackbox.Context) {
             super.traverse(thenp)
             super.traverse(elsep)
 
-          case _: Apply =>
+          case apply: Apply =>
             if (!syntax.apply) c.abort(tree.pos, "Applications are disallowed")
+
+            val method = apply.fun.symbol.asMethod
+            callTargets.validate(apply.pos, method)
+
             super.traverse(tree)
 
           case defdef: DefDef if defdef.name.toString != "<init>" =>
