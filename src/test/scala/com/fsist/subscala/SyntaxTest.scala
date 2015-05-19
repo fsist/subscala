@@ -18,9 +18,9 @@ class SyntaxTest {
         }
       """, "`if` expressions are disallowed")
 
-    // If should'nt block while (although while desugars to if)
+    // If shouldn't block while (although while desugars to if)
 
-    val t2 = Restrict[Unit, All - If, CallTargets.None] {
+    val t2 = Restrict[Unit, All - If, CallTargets.All] {
       while (true) println()
     }
   }
@@ -61,7 +61,7 @@ class SyntaxTest {
   // optimizes the class definitions away!
 
   def testAbstractClass = {
-    val _ = Restrict[Int, All - AbstractClass, CallTargets.None] {
+    val _ = Restrict[Int, All - AbstractClass, CallTargets.All] {
       class C;
       new C
       case class C2();
@@ -81,7 +81,7 @@ class SyntaxTest {
   }
 
   def testConcreteClass = {
-    val _ = Restrict[Int, All - ConcreteClass, CallTargets.None] {
+    val _ = Restrict[Int, All - ConcreteClass, CallTargets.All] {
       abstract class C
       trait T
       object O extends C with T
@@ -97,7 +97,7 @@ class SyntaxTest {
   }
 
   def testTrait = {
-    val _ = Restrict[Int, All - Trait, CallTargets.None] {
+    val _ = Restrict[Int, All - Trait, CallTargets.All] {
       class C;
       new C
       abstract class C2
@@ -118,7 +118,7 @@ class SyntaxTest {
   }
 
   def testObject = {
-    val _ = Restrict[Int, All - Object, CallTargets.None] {
+    val _ = Restrict[Int, All - Object, CallTargets.All] {
       class C;
       new C
       abstract class C2
