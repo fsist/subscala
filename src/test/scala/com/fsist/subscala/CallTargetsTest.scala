@@ -18,6 +18,26 @@ object CallTargetsTest {
           "foo".foreach(println) // foreach is a not method of String
           ""
         }
-      """, "Calling method foreach of IndexedSeqOptimized is disallowed")
+      """, "Calling method foreach of trait IndexedSeqOptimized is disallowed")
+  }
+
+  def testMethod = {
+    trait length extends CallTargets.MethodsOf[String] {
+      def length(): Int
+    }
+
+    Restrict[String, Syntax.All, length] {
+      "foo".length()
+      ""
+    }
+
+    illTyped(
+      """
+        Restrict[String, Syntax.All, CallTargets.Method[String, String, TNil]] {
+          "foo".equals("bar")
+          ""
+        }
+      """
+    )
   }
 }

@@ -2,142 +2,22 @@ package com.fsist.subscala
 
 import scala.annotation.tailrec
 import scala.language.experimental.macros
-import scala.reflect.api.Universe
+import scala.language.implicitConversions
 
 import scala.reflect.macros.blackbox
 
-class Restrict(val c: blackbox.Context) {
-
+class Restrict(val c: blackbox.Context)  { self =>
+  val reifier = new Reifier { type U = self.c.universe.type; override val universe = c.universe: self.c.universe.type }
   import c.universe._
+  import reifier._
 
-  // A wrapper for Type that can be placed in a Set
-  implicit class TypeHolder(val tpe: Type) {
-    override def equals(other: Any): Boolean = other match {
-      case t: Type => tpe =:= t
-      case holder: TypeHolder => tpe =:= holder.tpe
-      case _ => false
-    }
-
-    override def hashCode(): Int = tpe.toString.hashCode
-  }
-
-  case class ReifiedSyntax(`if`: Boolean = false, `while`: Boolean = false, apply: Boolean = false, `def`: Boolean = false,
-                           abstractClass: Boolean = false, concreteClass: Boolean = false,
-                           `trait`: Boolean = false, `object`: Boolean = false,
-                           `import`: Boolean = false,
-                           `val`: Boolean = false, `var`: Boolean = false, `lazy`: Boolean = false) {
-    def plus(other: ReifiedSyntax): ReifiedSyntax = ReifiedSyntax(
-      `if` || other.`if`,
-      `while` || other.`while`,
-      apply || other.apply,
-      `def` || other.`def`,
-      abstractClass || other.abstractClass,
-      concreteClass || other.concreteClass,
-      `trait` || other.`trait`,
-      `object` || other.`object`,
-      `import` || other.`import`,
-      `val` || other.`val`,
-      `var` || other.`var`,
-      `lazy` || other.`lazy`
-    )
-
-    def minus(other: ReifiedSyntax): ReifiedSyntax = ReifiedSyntax(
-      `if` && !other.`if`,
-      `while` && !other.`while`,
-      apply && !other.apply,
-      `def` && !other.`def`,
-      abstractClass && !other.abstractClass,
-      concreteClass && !other.concreteClass,
-      `trait` && !other.`trait`,
-      `object` && !other.`object`,
-      `import` && !other.`import`,
-      `val` && !other.`val`,
-      `var` && !other.`var`,
-      `lazy` && !other.`lazy`
-    )
-  }
-
-  sealed trait ReifiedCallTargets {
-    def plus(other: ReifiedCallTargets): ReifiedCallTargets
-    def minus(other: ReifiedCallTargets): ReifiedCallTargets
-    def validate(pos: Position, method: MethodSymbol): Unit
-  }
-
-  object ReifiedCallTargets {
-
-    case object All extends ReifiedCallTargets {
-      override def plus(other: ReifiedCallTargets): ReifiedCallTargets = All
-      override def minus(other: ReifiedCallTargets): ReifiedCallTargets = All
-      override def validate(pos: Position, method: MethodSymbol): Unit = ()
-    }
-
-    case class Some(allMethodsOf: Set[TypeHolder]) extends ReifiedCallTargets {
-      override def plus(other: ReifiedCallTargets): ReifiedCallTargets = other match {
-        case All => All
-        case some: Some => Some(allMethodsOf.union(some.allMethodsOf))
-      }
-
-      override def minus(other: ReifiedCallTargets): ReifiedCallTargets = other match {
-        case All => All
-        case some: Some => Some(allMethodsOf.diff(some.allMethodsOf))
-      }
-
-      override def validate(pos: Position, method: MethodSymbol): Unit = {
-        @tailrec def getOwner(symbol: Symbol): TypeSymbol = if (symbol.isType) symbol.asType else getOwner(symbol.owner)
-        val owner = getOwner(method).toType
-        if (!allMethodsOf.contains(owner)) {
-          c.abort(pos, s"Calling $method of ${owner.typeSymbol.name} is disallowed")
-        }
-      }
-    }
-  }
-
-  def restrict[T: c.WeakTypeTag, S <: Syntax : c.WeakTypeTag, C <: CallTargets : c.WeakTypeTag](t: Expr[T]): Expr[T] = {
-    validate(t, reifySyntax(weakTypeOf[S]), reifyCallTargets(weakTypeOf[C]))
+  def restrict[T: WeakTypeTag, S <: Syntax : WeakTypeTag, C <: CallTargets : WeakTypeTag](t: Expr[T]): Expr[T] = {
+    validate(t, ReifiedSyntax(weakTypeOf[S]), ReifiedCallTargets(weakTypeOf[C]))
     t
   }
 
-  def reifySyntax(tpe: Type): ReifiedSyntax = {
-    if (tpe =:= typeOf[Syntax.If]) ReifiedSyntax(`if` = true)
-    else if (tpe =:= typeOf[Syntax.While]) ReifiedSyntax(`while` = true)
-    else if (tpe =:= typeOf[Syntax.Apply]) ReifiedSyntax(apply = true)
-    else if (tpe =:= typeOf[Syntax.Def]) ReifiedSyntax(`def` = true)
-    else if (tpe =:= typeOf[Syntax.AbstractClass]) ReifiedSyntax(abstractClass = true)
-    else if (tpe =:= typeOf[Syntax.ConcreteClass]) ReifiedSyntax(concreteClass = true)
-    else if (tpe =:= typeOf[Syntax.Trait]) ReifiedSyntax(`trait` = true)
-    else if (tpe =:= typeOf[Syntax.Object]) ReifiedSyntax(`object` = true)
-    else if (tpe =:= typeOf[Syntax.Import]) ReifiedSyntax(`import` = true)
-    else if (tpe =:= typeOf[Syntax.Val]) ReifiedSyntax(`val` = true)
-    else if (tpe =:= typeOf[Syntax.Var]) ReifiedSyntax(`var` = true)
-    else if (tpe =:= typeOf[Syntax.Lazy]) ReifiedSyntax(`lazy` = true)
-    else if (tpe <:< typeOf[Syntax.+[_, _]]) {
-      val args = tpe.baseType(typeOf[Syntax.+[_, _]].typeSymbol).typeArgs
-      reifySyntax(args(0)).plus(reifySyntax(args(1)))
-    }
-    else if (tpe <:< typeOf[Syntax.-[_, _]]) {
-      val args = tpe.baseType(typeOf[Syntax.-[_, _]].typeSymbol).typeArgs
-      reifySyntax(args(0)).minus(reifySyntax(args(1)))
-    }
-    else throw new NotImplementedError(tpe.toString)
-  }
-
-  def reifyCallTargets(tpe: Type): ReifiedCallTargets = {
-    if (tpe =:= typeOf[CallTargets.None]) ReifiedCallTargets.Some(Set.empty)
-    else if (tpe =:= typeOf[CallTargets.All]) ReifiedCallTargets.All
-    else if (tpe <:< typeOf[CallTargets.AllMethodsOf[_]]) {
-      val args = tpe.baseType(typeOf[CallTargets.AllMethodsOf[_]].typeSymbol).typeArgs
-      ReifiedCallTargets.Some(Set(args(0)))
-    }
-    else if (tpe <:< typeOf[CallTargets.+[_, _]]) {
-      val args = tpe.baseType(typeOf[CallTargets.+[_, _]].typeSymbol).typeArgs
-      reifyCallTargets(args(0)).plus(reifyCallTargets(args(1)))
-    }
-    else if (tpe <:< typeOf[CallTargets.-[_, _]]) {
-      val args = tpe.baseType(typeOf[CallTargets.-[_, _]].typeSymbol).typeArgs
-      reifyCallTargets(args(0)).minus(reifyCallTargets(args(1)))
-    }
-    else throw new NotImplementedError(tpe.toString)
-  }
+  @tailrec private def owner(symbol: Symbol): TypeSymbol =
+    if (symbol.isType) symbol.asType else owner(symbol.owner)
 
   def validate[T: c.WeakTypeTag](expr: Expr[T], syntax: ReifiedSyntax, callTargets: ReifiedCallTargets): Unit = {
     val traverser = new Traverser {
@@ -161,7 +41,9 @@ class Restrict(val c: blackbox.Context) {
             if (!syntax.apply) c.abort(tree.pos, "Applications are disallowed")
 
             val method = apply.fun.symbol.asMethod
-            callTargets.validate(apply.pos, method)
+            if (! callTargets.matches(method)) {
+              c.abort(apply.pos, s"Calling $method of ${owner(method)} is disallowed")
+            }
 
             super.traverse(tree)
 
