@@ -9,6 +9,8 @@ trait Reifier {
   val universe: U
   import universe._
 
+  def info(msg: String): Unit
+
   /** Represents the [[Syntax]] type as a value. */
   case class ReifiedSyntax(`if`: Boolean = false, `while`: Boolean = false, apply: Boolean = false, `def`: Boolean = false,
                            abstractClass: Boolean = false, concreteClass: Boolean = false,
@@ -170,26 +172,29 @@ trait Reifier {
   sealed trait ReifiedCallTargets {
     def +(other: ReifiedCallTargets): ReifiedCallTargets
     def -(other: ReifiedCallTargets): ReifiedCallTargets
-    def matches(method: MethodSymbol): Boolean
+    def matches(method: MethodSymbol, isLocallyDefined: Boolean): Boolean
   }
 
   object ReifiedCallTargets {
 
-    /** Allows calls to all methods of all types. */
+    /** Allows calls to all methods of all types, including locally defined ones. */
     case object All extends ReifiedCallTargets {
       override def +(other: ReifiedCallTargets): ReifiedCallTargets = this
 
       override def -(other: ReifiedCallTargets): ReifiedCallTargets = other match {
         case All => none
-        case These(map) => throw new NotImplementedError("CallTargets specification by subtraction")
+        case These(_, _) => throw new NotImplementedError("CallTargets specification by subtraction")
       }
 
-      override def matches(method: MethodSymbol): Boolean = true
+      override def matches(method: MethodSymbol, isLocallyDefined: Boolean): Boolean = true
     }
 
-    val none: ReifiedCallTargets = These(Map.empty)
+    val none: ReifiedCallTargets = These(Map.empty, false)
 
-    case class These(methods: Map[TypeHolder, MethodSpecs]) extends ReifiedCallTargets {
+    /** Allows calls to the methods given in `methods` for each type.
+      *
+      * @param locallyDefined if true, allows calls to all new methods defined inside the same tree the macro is checking. */
+    case class These(methods: Map[TypeHolder, MethodSpecs], locallyDefined: Boolean) extends ReifiedCallTargets {
       private def mergeMethods(other: Map[TypeHolder, MethodSpecs],
                                merger: (MethodSpecs, MethodSpecs) => MethodSpecs): Map[TypeHolder, MethodSpecs] = {
         methods.foldLeft(other) {
@@ -205,23 +210,27 @@ trait Reifier {
       }
 
       override def +(other: ReifiedCallTargets): ReifiedCallTargets = other match {
-        case All => other
-        case These(otherMethods) => These(mergeMethods(otherMethods, _ + _))
+        case All => All
+        case These(otherMethods, otherLocal) => These(mergeMethods(otherMethods, _ + _), locallyDefined || otherLocal)
       }
 
       override def -(other: ReifiedCallTargets): ReifiedCallTargets = other match {
         case All => none
-        case These(otherMethods) => These(mergeMethods(otherMethods, _ - _))
+        case These(otherMethods, otherLocal) => These(mergeMethods(otherMethods, _ - _), locallyDefined && ! otherLocal)
       }
 
-      override def matches(method: MethodSymbol): Boolean = {
-        @tailrec def getOwner(symbol: Symbol): TypeSymbol =
-          if (symbol.isType) symbol.asType else getOwner(symbol.owner)
+      override def matches(method: MethodSymbol, isLocallyDefined: Boolean): Boolean = {
+        if (isLocallyDefined) locallyDefined
+        else {
+          @tailrec def getOwner(symbol: Symbol): TypeSymbol =
+            if (symbol.isType) symbol.asType else getOwner(symbol.owner)
 
-        val owner = getOwner(method).toType
-        methods.get(owner) match {
-          case Some(methods) => methods.matches(method)
-          case None => false
+          val owner = getOwner(method).toType
+          methods.get(owner) match {
+            case Some(methods) =>
+              methods.matches(method)
+            case None => false
+          }
         }
       }
     }
@@ -231,11 +240,14 @@ trait Reifier {
       else if (tpe =:= typeOf[CallTargets.All]) All
       else if (tpe <:< typeOf[CallTargets.AllMethodsOf[_]]) {
         val List(owner) = tpe.baseType(typeOf[CallTargets.AllMethodsOf[_]].typeSymbol).typeArgs
-        These(Map(TypeHolder(owner) -> MethodSpecs.all))
+        These(Map(TypeHolder(owner) -> MethodSpecs.all), false)
       }
       else if (tpe <:< typeOf[CallTargets.MethodsOf[_]]) {
         val List(owner) = tpe.baseType(typeOf[CallTargets.MethodsOf[_]].typeSymbol).typeArgs
-        These(Map(TypeHolder(owner) -> reifyMethodsOf(owner)))
+        These(Map(TypeHolder(owner) -> reifyMethodsOf(owner)), false)
+      }
+      else if (tpe =:= typeOf[CallTargets.LocallyDefined]) {
+        These(Map.empty, true)
       }
       else if (tpe <:< typeOf[CallTargets.+[_, _]]) {
         val List(a, b) = tpe.baseType(typeOf[CallTargets.+[_, _]].typeSymbol).typeArgs

@@ -1,25 +1,55 @@
 package com.fsist.subscala
 
 import scala.annotation.tailrec
+import scala.collection.mutable.ListBuffer
 import scala.language.experimental.macros
 import scala.language.implicitConversions
 
 import scala.reflect.macros.blackbox
 
-class Restrict(val c: blackbox.Context)  { self =>
-  val reifier = new Reifier { type U = self.c.universe.type; override val universe = c.universe: self.c.universe.type }
+class Restrict(val c: blackbox.Context) {
+  self =>
+  val reifier = new Reifier {
+    type U = self.c.universe.type;
+    override val universe = c.universe: self.c.universe.type
+    override def info(msg: String): Unit = c.info(c.enclosingPosition, msg, false)
+  }
+
   import c.universe._
   import reifier._
 
   def restrict[T: WeakTypeTag, S <: Syntax : WeakTypeTag, C <: CallTargets : WeakTypeTag](t: Expr[T]): Expr[T] = {
-    validate(t, ReifiedSyntax(weakTypeOf[S]), ReifiedCallTargets(weakTypeOf[C]))
+    validate(t, ReifiedSyntax(weakTypeOf[S]), ReifiedCallTargets(weakTypeOf[C]), definitions(t))
     t
   }
 
   @tailrec private def owner(symbol: Symbol): TypeSymbol =
     if (symbol.isType) symbol.asType else owner(symbol.owner)
 
-  def validate[T: c.WeakTypeTag](expr: Expr[T], syntax: ReifiedSyntax, callTargets: ReifiedCallTargets): Unit = {
+  def info(msg: String, pos: Position = c.enclosingPosition): Unit = c.info(pos, msg, false)
+
+  private case class Definitions(classes: Set[ClassSymbol], methods: Set[MethodSymbol])
+
+  private def definitions[T: c.WeakTypeTag](expr: Expr[T]): Definitions = {
+    val classes = new ListBuffer[ClassSymbol]
+    val methods = new ListBuffer[MethodSymbol]
+
+    new Traverser {
+      override def traverse(tree: Tree): Unit = {
+        tree match {
+          case c: ClassDef => classes += c.symbol.asClass
+          case d: DefDef => methods += d.symbol.asMethod
+          case _ =>
+        }
+        super.traverse(tree)
+      }
+    }.traverse(expr.tree)
+
+    Definitions(classes.toSet, methods.toSet)
+  }
+
+  private def validate[T: c.WeakTypeTag](expr: Expr[T], syntax: ReifiedSyntax, callTargets: ReifiedCallTargets,
+                                         localDefs: Definitions): Unit = {
     val traverser = new Traverser {
       override def traverse(tree: Tree): Unit = {
         tree match {
@@ -41,8 +71,19 @@ class Restrict(val c: blackbox.Context)  { self =>
             if (!syntax.apply) c.abort(tree.pos, "Applications are disallowed")
 
             val method = apply.fun.symbol.asMethod
-            if (! callTargets.matches(method)) {
-              c.abort(apply.pos, s"Calling $method of ${owner(method)} is disallowed")
+
+//            val definedClassTypes = localDefs.classes.map(_.toType)
+//            val ownerType = owner(method).toType
+//            val isLocallyDefined = definedClassTypes.exists(_ =:= ownerType) || localDefs.methods.contains(method)
+            val isLocallyDefined = localDefs.methods.contains(method)
+
+            if (!callTargets.matches(method, isLocallyDefined)) {
+              if (isLocallyDefined) {
+                c.abort(apply.pos, s"Calling locally defined method ${method.fullName} is disallowed")
+              }
+              else {
+                c.abort(apply.pos, s"Calling method ${method.fullName} is disallowed")
+              }
             }
 
             super.traverse(tree)

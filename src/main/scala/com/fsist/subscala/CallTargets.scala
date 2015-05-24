@@ -24,5 +24,10 @@ object CallTargets {
     * trait AllowEquals extends MethodsOf[String] { def length(): Int }
     */
   trait MethodsOf[Owner] extends CallTargets
+
+  /** Allow calling methods defined in the same code tree passed to the validation macro.
+    * This includes constructors of classes defined in the same tree.
+    */
+  type LocallyDefined <: CallTargets
 }
 
