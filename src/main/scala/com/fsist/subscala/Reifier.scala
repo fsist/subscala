@@ -7,6 +7,7 @@ import scala.reflect.api.Universe
 trait Reifier {
   type U <: Universe with Singleton
   val universe: U
+
   import universe._
 
   def info(msg: String): Unit
@@ -166,13 +167,14 @@ trait Reifier {
 
       override def matches(method: MethodSymbol): Boolean = !methods.exists(_.matches(method))
     }
+
   }
 
   /** Represents the [[ReifiedCallTargets]] type as a value. */
   sealed trait ReifiedCallTargets {
     def +(other: ReifiedCallTargets): ReifiedCallTargets
     def -(other: ReifiedCallTargets): ReifiedCallTargets
-    def matches(method: MethodSymbol, isLocallyDefined: Boolean): Boolean
+    def matches(method: MethodSymbol, methodType: MethodType, isLocallyDefined: Boolean): Boolean
   }
 
   object ReifiedCallTargets {
@@ -186,7 +188,7 @@ trait Reifier {
         case These(_, _) => throw new NotImplementedError("CallTargets specification by subtraction")
       }
 
-      override def matches(method: MethodSymbol, isLocallyDefined: Boolean): Boolean = true
+      override def matches(method: MethodSymbol, methodType: MethodType, isLocallyDefined: Boolean): Boolean = true
     }
 
     val none: ReifiedCallTargets = These(Map.empty, false)
@@ -216,17 +218,33 @@ trait Reifier {
 
       override def -(other: ReifiedCallTargets): ReifiedCallTargets = other match {
         case All => none
-        case These(otherMethods, otherLocal) => These(mergeMethods(otherMethods, _ - _), locallyDefined && ! otherLocal)
+        case These(otherMethods, otherLocal) => These(mergeMethods(otherMethods, _ - _), locallyDefined && !otherLocal)
       }
 
-      override def matches(method: MethodSymbol, isLocallyDefined: Boolean): Boolean = {
+      override def matches(method: MethodSymbol, methodType: MethodType, isLocallyDefined: Boolean): Boolean = {
         if (isLocallyDefined) locallyDefined
         else {
           @tailrec def getOwner(symbol: Symbol): TypeSymbol =
             if (symbol.isType) symbol.asType else getOwner(symbol.owner)
 
+          // When calling a generic method, the method symbol contains explicit abstract types in place of type parameters,
+          // for instance Function0[R], as opposed to the type constructor Function0, or the existential type Function0[_].
+          // If you look at the R type parameter, it will be just some abstract Type with no extra info (except for type
+          // bounds presumably).
+          //
+          // On the other hand, the method type is a concrete type, e.g. when calling Function0[Unit], it would be the
+          // method type ()Unit. It's not a concrete generic type, i.e. it doens't know that the Unit is a generic type
+          // argument.
+          //
+          // We need to construct the owner type Function0[Unit] instead of Function0[R] to make MethodsOf[Function0[Unit]] work.
+          // To do this, we need to substitute R for Unit in the owner symbol, based on the known method type () => Unit.
+
           val owner = getOwner(method).toType
-          methods.get(owner) match {
+          val realOwner = owner
+            .substituteTypes(List(method.returnType.typeSymbol), List(methodType.resultType))
+            .substituteTypes(method.paramLists.flatten.map(_.info.typeSymbol), methodType.paramLists.flatten.map(_.info))
+
+          methods.get(realOwner) match {
             case Some(methods) =>
               methods.matches(method)
             case None => false

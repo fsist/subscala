@@ -96,12 +96,56 @@ object CallTargetsTest {
     // Here the actual call target is Function0.apply.
     // Note that the restrictions don't support generic specificity at the time of writing, so we write the generic type
     // Function0 and not the specific Function0[Unit].
+    Restrict[String, Syntax.All, CallTargets.AllMethodsOf[Function0[Unit]]] {
+      val foo = () => ()
+      foo()
+      ""
+    }
+  }
 
-    // TODO: generics still don't work
-//    Restrict[String, Syntax.All, CallTargets.AllMethodsOf[Function0[_]]] {
-//      val foo = () => ()
-//      foo()
-//      ""
+  def callMethodOfGenericType = {
+    trait Generic[A, B, +R] {
+      def method(x: A, y: B): R
+    }
+    
+    trait Parent
+    trait Child extends Parent
+
+    // Explicit parent type
+    Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Parent]]] {
+      val instance: Generic[Int, Long, Parent] = ???
+      instance.method(1, 2L)
+    }
+
+    // Explicit child type
+    Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Child]]] {
+      val instance: Generic[Int, Long, Child] = ???
+      instance.method(1, 2L)
+    }
+
+    // Allow parent type, call child type: not implemented
+    // TODO
+//    Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Parent]]] {
+//      val instance: Generic[Int, Long, Child] = ???
+//      instance.method(1, 2L)
 //    }
+
+    illTyped(
+      """
+        Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Int, Parent]]] {
+          val instance: Generic[Int, Long, Parent] = ???
+          instance.method(1, 2L)
+        }
+      """, "Calling method com.fsist.subscala.CallTargetsTest.Generic.method is disallowed"
+    )
+
+    illTyped(
+      """
+        Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Boolean]]] {
+          val instance: Generic[Int, Long, Parent] = ???
+          instance.method(1, 2L)
+        }
+      """, "Calling method com.fsist.subscala.CallTargetsTest.Generic.method is disallowed"
+    )
   }
 }

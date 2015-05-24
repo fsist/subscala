@@ -71,13 +71,17 @@ class Restrict(val c: blackbox.Context) {
             if (!syntax.apply) c.abort(tree.pos, "Applications are disallowed")
 
             val method = apply.fun.symbol.asMethod
+            val methodType = apply.fun.tpe match {
+              case m: MethodType => m
+              case other => c.abort(apply.fun.pos, s"Expected method type but got: $other")
+            }
 
 //            val definedClassTypes = localDefs.classes.map(_.toType)
 //            val ownerType = owner(method).toType
 //            val isLocallyDefined = definedClassTypes.exists(_ =:= ownerType) || localDefs.methods.contains(method)
             val isLocallyDefined = localDefs.methods.contains(method)
 
-            if (!callTargets.matches(method, isLocallyDefined)) {
+            if (!callTargets.matches(method, methodType, isLocallyDefined)) {
               if (isLocallyDefined) {
                 c.abort(apply.pos, s"Calling locally defined method ${method.fullName} is disallowed")
               }
