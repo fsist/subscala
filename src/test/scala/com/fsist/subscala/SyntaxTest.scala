@@ -20,7 +20,7 @@ class SyntaxTest {
 
     // If shouldn't block while (although while desugars to if)
 
-    val t2 = Restrict[Unit, All - If, CallTargets.All] {
+    val t2 = Restrict.syntax[Unit, All - If] {
       while (true) println()
     }
   }
