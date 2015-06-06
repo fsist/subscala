@@ -23,6 +23,14 @@ class Restrict(val c: blackbox.Context) {
     t
   }
 
+  def restrictSyntax[T: WeakTypeTag, S <: Syntax : WeakTypeTag](t: Expr[T]): Expr[T] = {
+    restrict[T, S, CallTargets.All](t)
+  }
+
+  def restrictTargets[T: WeakTypeTag, C <: CallTargets : WeakTypeTag](t: Expr[T]): Expr[T] = {
+    restrict[T, Syntax.All, C](t)
+  }
+
   @tailrec private def owner(symbol: Symbol): TypeSymbol =
     if (symbol.isType) symbol.asType else owner(symbol.owner)
 
@@ -132,5 +140,7 @@ class Restrict(val c: blackbox.Context) {
 
 object Restrict {
   def apply[T, S <: Syntax, C <: CallTargets](t: T): T = macro Restrict.restrict[T, S, C]
+  def syntax[T, S <: Syntax](t: T): T = macro Restrict.restrictSyntax[T, S]
+  def targets[T, C <: CallTargets](t: T): T = macro Restrict.restrictTargets[T, C]
 }
 
