@@ -103,6 +103,24 @@ object CallTargetsTest {
     }
   }
 
+  def callMethodOfSubtype = {
+    trait Parent {
+      def foo(): Unit
+    }
+    trait Child extends Parent
+
+    Restrict[Unit, Syntax.All, CallTargets.AllMethodsOf[Parent]] {
+      val instance: Parent = ???
+      instance.foo()
+    }
+
+    Restrict[Unit, Syntax.All, CallTargets.AllMethodsOf[Parent]] {
+      val instance: Parent = ???
+      instance.foo()
+    }
+
+  }
+
   def callMethodOfGenericType = {
     trait Generic[A, B, +R] {
       def method(x: A, y: B): R
@@ -123,12 +141,11 @@ object CallTargetsTest {
       instance.method(1, 2L)
     }
 
-    // Allow parent type, call child type: not implemented
-    // TODO
-//    Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Parent]]] {
-//      val instance: Generic[Int, Long, Child] = ???
-//      instance.method(1, 2L)
-//    }
+    // Allow parent type, call child type
+    Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Parent]]] {
+      val instance: Generic[Int, Long, Child] = ???
+      instance.method(1, 2L)
+    }
 
     illTyped(
       """

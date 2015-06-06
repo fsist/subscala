@@ -244,10 +244,11 @@ trait Reifier {
             .substituteTypes(List(method.returnType.typeSymbol), List(methodType.resultType))
             .substituteTypes(method.paramLists.flatten.map(_.info.typeSymbol), methodType.paramLists.flatten.map(_.info))
 
-          methods.get(realOwner) match {
-            case Some(methods) =>
-              methods.matches(method)
-            case None => false
+          // Should rewrite this to speed it up
+          methods.exists {
+            case (holder, ms) =>
+              if (realOwner <:< holder.tpe) ms.matches(method)
+              else false
           }
         }
       }
