@@ -21,7 +21,7 @@ object CallTargets {
     *
     * For instance, to allow calls to String.length(), you would write:
     *
-    * trait AllowEquals extends MethodsOf[String] { def length(): Int }
+    * trait AllowLength extends MethodsOf[String] { def length(): Int }
     */
   trait MethodsOf[Owner] extends CallTargets
 
