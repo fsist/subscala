@@ -175,23 +175,36 @@ object CallTargetsTest {
     )
   }
 
-//  def callGenericMethod = {
-//    trait Generic {
-//      def method[T](t: T): T
-//    }
-//
-//    trait AllowT extends CallTargets.MethodsOf[Generic] {
-//      def method[T](t: T): T
-//    }
-//
-//    trait AllowInt extends CallTargets.MethodsOf[Generic] {
-//      def method(t: Int): Int
-//    }
-//
-//    Restrict.targets[Int, AllowT] {
+  def callGenericMethod = {
+    trait Generic {
+      def method[T](t: T): T
+    }
+
+    trait AllowT extends CallTargets.MethodsOf[Generic] {
+      def method[T](t: T): T
+    }
+
+    trait AllowInt extends CallTargets.MethodsOf[Generic] {
+      def method(t: Int): Int
+    }
+
+    trait AllowString extends CallTargets.MethodsOf[Generic] {
+      def method(t: String): String
+    }
+
+    Restrict.targets[Int, AllowT] {
+      val g: Generic = ???
+      g.method("foo")
+      g.method(1)
+    }
+
+    // This doesn't work because Reifier compares erased types, and the erased type of the actual method takes an Object,
+    // while we permitted String. To enable this usage Reifier would have to compare actual, unerased types and compare
+    // their type args directly, taking into account type bounds.
+
+//    Restrict.targets[String, AllowString] {
 //      val g: Generic = ???
 //      g.method("foo")
-//      g.method(1)
 //    }
 //
 //    illTyped(
@@ -202,7 +215,7 @@ object CallTargetsTest {
 //        }
 //      """, "Calling method com.fsist.subscala.CallTargetsTest.Generic.method is disallowed"
 //    )
-//  }
+  }
 
   def callWithVarargs = {
     trait Varargs {

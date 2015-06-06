@@ -1,6 +1,7 @@
 package com.fsist.subscala
 
 import scala.annotation.tailrec
+import scala.collection.mutable.ListBuffer
 import scala.reflect.api.Universe
 
 /** This wrapper lets us use the Type type, which is path-dependent on a Universe. */
@@ -113,6 +114,11 @@ trait Reifier {
     def matches(method: MethodSymbol): Boolean = {
       val methodParamTypes = method.paramLists.map(_.map(_.typeSignature))
 
+//      info(s"Testing $method named ${method.name.encodedName} with type sig ${method.typeSignature} against $this, " +
+//        s"actual method param types are $methodParamTypes, expected $paramTypess, " +
+//        s"generic args are ${method.typeSignature.typeArgs}, takes type args = ${method.typeSignature.takesTypeArgs}, " +
+//        s"type ctor = ${method.typeSignature.typeConstructor}")
+//
       if (method.name.encodedName.toString != name) false
       else {
         methodParamTypes.size == paramTypess.size &&
@@ -121,7 +127,8 @@ trait Reifier {
               actual.size == expected.size &&
                 actual.zip(expected).forall {
                   case (tpe1, tpe2) =>
-                    tpe1 =:= tpe2
+                    info(s"Comparing ${tpe1.erasure} vs ${tpe2.erasure}")
+                    tpe1.erasure =:= tpe2.erasure
                 }
           }
       }
