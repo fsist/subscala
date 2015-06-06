@@ -7,7 +7,7 @@ object CallTargetsTest {
   // This file doesn't contain any runtime tests; the tests are done at compile time.
 
   def allMethodsOf = {
-    Restrict[String, Syntax.All, CallTargets.AllMethodsOf[String]] {
+    Restrict.targets[String, CallTargets.AllMethodsOf[String]] {
       "foo".contains("f")
       "bar".indexOf("b")
       ""
@@ -40,6 +40,15 @@ object CallTargetsTest {
         }
       """, "Calling method java.lang.String.equals is disallowed"
     )
+  }
+
+  def methodWithParameters = {
+    trait charAt extends CallTargets.MethodsOf[String] {
+      def charAt(index: Int): Char
+    }
+    Restrict.targets[Char, charAt] {
+      "foo".charAt(0)
+    }
   }
 
   trait ObjectCtor extends CallTargets.MethodsOf[Object] {
@@ -125,7 +134,7 @@ object CallTargetsTest {
     trait Generic[A, B, +R] {
       def method(x: A, y: B): R
     }
-    
+
     trait Parent
     trait Child extends Parent
 
@@ -165,4 +174,65 @@ object CallTargetsTest {
       """, "Calling method com.fsist.subscala.CallTargetsTest.Generic.method is disallowed"
     )
   }
+
+//  def callGenericMethod = {
+//    trait Generic {
+//      def method[T](t: T): T
+//    }
+//
+//    trait AllowT extends CallTargets.MethodsOf[Generic] {
+//      def method[T](t: T): T
+//    }
+//
+//    trait AllowInt extends CallTargets.MethodsOf[Generic] {
+//      def method(t: Int): Int
+//    }
+//
+//    Restrict.targets[Int, AllowT] {
+//      val g: Generic = ???
+//      g.method("foo")
+//      g.method(1)
+//    }
+//
+//    illTyped(
+//      """
+//        Restrict.targets[Int, AllowInt] {
+//          val g: Generic = ???
+//          g.method(1)
+//        }
+//      """, "Calling method com.fsist.subscala.CallTargetsTest.Generic.method is disallowed"
+//    )
+//  }
+
+  def callWithVarargs = {
+    trait Varargs {
+      def method(strings: String*): Unit
+    }
+
+    trait Allow extends CallTargets.MethodsOf[Varargs] {
+      def method(strings: String*): Unit
+    }
+
+    Restrict.targets[Unit, Allow] {
+      val v: Varargs = ???
+      v.method("a", "b")
+    }
+
+    trait AllowTwo extends CallTargets.MethodsOf[Varargs] {
+      def method(a: String, b: String): Unit
+    }
+
+    illTyped(
+      """
+        Restrict.targets[Unit, AllowTwo] {
+          val v: Varargs = ???
+          v.method("a", "b")
+        }
+      """, "Calling method com.fsist.subscala.CallTargetsTest.Varargs.method is disallowed"
+    )
+  }
+
+  // TODO call method using argument subtype of expected parameter type
+  // TODO call method with multiple param lists
+  // TODO call method with implicit params
 }

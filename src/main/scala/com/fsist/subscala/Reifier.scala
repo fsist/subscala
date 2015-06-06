@@ -111,18 +111,22 @@ trait Reifier {
     override def hashCode(): Int = name.hashCode + paramTypess.size * paramTypess.map(_.size).sum
 
     def matches(method: MethodSymbol): Boolean = {
-      method.name.toString == name &&
-        method.paramLists.size == paramTypess.size &&
-        method.paramLists.zip(paramTypess).forall {
-          case (paramList, paramTypes) =>
-            paramList.size == paramTypes.size &&
-              paramList.zip(paramTypes).forall {
-                case (param, tpe) => param.asType.toType =:= tpe
-              }
-        }
+      val methodParamTypes = method.paramLists.map(_.map(_.typeSignature))
+
+      if (method.name.encodedName.toString != name) false
+      else {
+        methodParamTypes.size == paramTypess.size &&
+          methodParamTypes.zip(paramTypess).forall {
+            case (actual, expected) =>
+              actual.size == expected.size &&
+                actual.zip(expected).forall {
+                  case (tpe1, tpe2) =>
+                    tpe1 =:= tpe2
+                }
+          }
+      }
     }
   }
-
 
   /** A selection of some methods of an unspecified type. */
   sealed trait MethodSpecs {
@@ -263,7 +267,7 @@ trait Reifier {
       }
       else if (tpe <:< typeOf[CallTargets.MethodsOf[_]]) {
         val List(owner) = tpe.baseType(typeOf[CallTargets.MethodsOf[_]].typeSymbol).typeArgs
-        These(Map(TypeHolder(owner) -> reifyMethodsOf(owner)), false)
+        These(Map(TypeHolder(owner) -> reifyMethodsOf(tpe)), false)
       }
       else if (tpe =:= typeOf[CallTargets.LocallyDefined]) {
         These(Map.empty, true)
@@ -278,21 +282,21 @@ trait Reifier {
       }
       else throw new NotImplementedError(s"CallTargets type $tpe")
     }
-  }
 
-  private def reifyMethodsOf(owner: Type): MethodSpecs = {
-    MethodSpecs.These(
-      owner.decls.foldLeft(Set.empty[MethodSpec]) {
-        case (methods, symbol) =>
-          if (!symbol.isMethod) methods
-          else {
-            val method = symbol.asMethod
-            val reified = MethodSpec(method.name.toString,
-              method.paramLists.map(_.map(_.asTerm.info))
-            )
-            methods + reified
-          }
-      }
-    )
+    private def reifyMethodsOf(owner: Type): MethodSpecs = {
+      MethodSpecs.These(
+        owner.decls.foldLeft(Set.empty[MethodSpec]) {
+          case (methods, symbol) =>
+            if (!symbol.isMethod) methods
+            else {
+              val method = symbol.asMethod
+              val reified = MethodSpec(method.name.toString,
+                method.paramLists.map(_.map(_.asTerm.info))
+              )
+              methods + reified
+            }
+        }
+      )
+    }
   }
 }
