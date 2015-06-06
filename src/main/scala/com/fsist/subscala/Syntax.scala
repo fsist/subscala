@@ -6,32 +6,32 @@ import scala.language.higherKinds
 sealed trait Syntax
 
 object Syntax {
-  type +[A <: Syntax, B <: Syntax] <: Syntax
-  type -[A <: Syntax, B <: Syntax] <: Syntax
+  sealed trait +[A <: Syntax, B <: Syntax] <: Syntax
+  sealed trait -[A <: Syntax, B <: Syntax] <: Syntax
 
-  type If <: Syntax
-  type While <: Syntax
-  type Apply <: Syntax
+  sealed trait If <: Syntax
+  sealed trait While <: Syntax
+  sealed trait Apply <: Syntax
 
-  type Def <: Syntax
+  sealed trait Def <: Syntax
 
-  type AbstractClass <: Syntax
-  type ConcreteClass <: Syntax
-  type Class = AbstractClass + ConcreteClass
+  sealed trait AbstractClass <: Syntax
+  sealed trait ConcreteClass <: Syntax
+  sealed trait Class extends (AbstractClass + ConcreteClass)
 
-  type Trait <: Syntax
+  sealed trait Trait <: Syntax
 
-  type Object <: Syntax
+  sealed trait Object <: Syntax
 
-  type Import <: Syntax
+  sealed trait Import <: Syntax
 
-  type Val <: Syntax
-  type Var <: Syntax
-  type Lazy <: Syntax
+  sealed trait Val <: Syntax
+  sealed trait Var <: Syntax
+  sealed trait Lazy <: Syntax
 
-  type LazyVal = Lazy + Val
-  type LazyVar = Lazy + Var
+  sealed trait LazyVal extends (Lazy + Val)
+  sealed trait LazyVar extends (Lazy + Var)
 
-  type All = If + While + Apply + Def + Class + Trait + Object + Import + Val + Var + Lazy
+  sealed trait All extends (If + While + Apply + Def + Class + Trait + Object + Import + Val + Var + Lazy)
 }
 
