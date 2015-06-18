@@ -1,6 +1,6 @@
 package com.fsist.subscala
 
-import com.fsist.subscala.CallTargets.+
+import com.fsist.subscala.CallTargets.{AllMethodsOf, +}
 import shapeless.test.illTyped
 
 object CallTargetsTest {
@@ -245,7 +245,73 @@ object CallTargetsTest {
     )
   }
 
+  def multipleParamLists = {
+    trait Trait {
+      def method(i: Int)(s: String): Int
+    }
+
+    trait Allow extends CallTargets.MethodsOf[Trait] {
+      def method(i: Int)(s: String): Int
+    }
+
+    trait Partial extends CallTargets.MethodsOf[Trait] {
+      def method(i: Int): String => Int
+    }
+
+    Restrict.targets[Int, Allow] {
+      val t: Trait = ???
+      t.method(1)("")
+    }
+
+    illTyped(
+      """
+        Restrict.targets[Int, Partial] {
+          val t: Trait = ???
+          t.method(1) _
+          1
+        }
+      """, "Calling method com.fsist.subscala.CallTargetsTest.Trait.method is disallowed"
+    )
+  }
+
+  def chainedCalls = {
+    trait Trait {
+      def method(i: Int): String => Int
+    }
+
+    trait Allow extends CallTargets.MethodsOf[Trait] {
+      def method(i: Int): String => Int
+    }
+
+    trait AllowParamLists extends CallTargets.MethodsOf[Trait] {
+      def method(i: Int)(s: String): Int
+    }
+
+    Restrict.targets[Int, Allow + AllMethodsOf[Function1[String, Int]]] {
+      val t: Trait = ???
+      t.method(1)("")
+    }
+
+    illTyped(
+      """
+        Restrict.targets[Int, AllowParamLists + AllMethodsOf[Function1[String, Int]]] {
+          val t: Trait = ???
+          t.method(1)("")
+        }
+      """, "Calling method com.fsist.subscala.CallTargetsTest.Trait.method is disallowed"
+    )
+
+    illTyped(
+      """
+        Restrict.targets[Int, Allow] {
+          val t: Trait = ???
+          t.method(1)("")
+        }
+      """, "Calling method scala.Function1.apply is disallowed"
+    )
+  }
+
   // TODO call method using argument subtype of expected parameter type
-  // TODO call method with multiple param lists
   // TODO call method with implicit params
+  // TODO test overloading
 }

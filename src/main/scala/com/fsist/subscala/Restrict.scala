@@ -75,8 +75,19 @@ class Restrict(val c: blackbox.Context) {
             super.traverse(thenp)
             super.traverse(elsep)
 
-          case apply: Apply =>
+          case outerApply: Apply =>
             if (!syntax.apply) c.abort(tree.pos, "Applications are disallowed")
+
+            // Calls to methods with multiple parameter lists show up here as nested Apply calls.
+            // The outmost Apply contains only the last parameter list.
+            // The innermost Apply contains all parameter lists (and not only the first one as you might expect).
+
+            @tailrec def innermostApply(apply: Apply): Apply = apply.fun match {
+              case a: Apply => innermostApply(a)
+              case _ => apply
+            }
+
+            val apply = innermostApply(outerApply)
 
             val method = apply.fun.symbol.asMethod
             val methodType = apply.fun.tpe match {
@@ -84,9 +95,6 @@ class Restrict(val c: blackbox.Context) {
               case other => c.abort(apply.fun.pos, s"Expected method type but got: $other")
             }
 
-//            val definedClassTypes = localDefs.classes.map(_.toType)
-//            val ownerType = owner(method).toType
-//            val isLocallyDefined = definedClassTypes.exists(_ =:= ownerType) || localDefs.methods.contains(method)
             val isLocallyDefined = localDefs.methods.contains(method)
 
             if (!callTargets.matches(method, methodType, isLocallyDefined)) {

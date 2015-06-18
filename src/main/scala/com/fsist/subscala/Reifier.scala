@@ -127,7 +127,6 @@ trait Reifier {
               actual.size == expected.size &&
                 actual.zip(expected).forall {
                   case (tpe1, tpe2) =>
-                    info(s"Comparing ${tpe1.erasure} vs ${tpe2.erasure}")
                     tpe1.erasure =:= tpe2.erasure
                 }
           }
