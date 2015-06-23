@@ -113,11 +113,6 @@ trait Reifier {
     def matches(method: MethodSymbol): Boolean = {
       val methodParamTypes = method.paramLists.map(_.map(_.typeSignature))
 
-//      info(s"Testing $method named ${method.name.encodedName} with type sig ${method.typeSignature} against $this, " +
-//        s"actual method param types are $methodParamTypes, expected $paramTypess, " +
-//        s"generic args are ${method.typeSignature.typeArgs}, takes type args = ${method.typeSignature.takesTypeArgs}, " +
-//        s"type ctor = ${method.typeSignature.typeConstructor}")
-//
       if (method.name.encodedName.toString != name) false
       else {
         methodParamTypes.size == paramTypess.size &&
