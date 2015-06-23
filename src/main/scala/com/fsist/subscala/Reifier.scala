@@ -1,7 +1,6 @@
 package com.fsist.subscala
 
 import scala.annotation.tailrec
-import scala.collection.mutable.ListBuffer
 import scala.reflect.api.Universe
 
 /** This wrapper lets us use the Type type, which is path-dependent on a Universe. */
@@ -11,7 +10,7 @@ trait Reifier {
 
   import universe._
 
-  def info(msg: String): Unit
+  protected def info(msg: String): Unit
 
   /** Represents the [[Syntax]] type as a value. */
   case class ReifiedSyntax(`if`: Boolean = false, `while`: Boolean = false, apply: Boolean = false, `def`: Boolean = false,
@@ -306,3 +305,21 @@ trait Reifier {
     }
   }
 }
+
+/** Reifies types extending [[Syntax]] and [[CallTargets]] into values that contain the same information.
+  *
+  * This relies on runtime reflection, so it doesn't work in e.g. scalajs. On user request I can separate out this
+  * code into a non-scalajs module.
+  */
+object ReflectiveReifier extends Reifier {
+  override type U = scala.reflect.runtime.universe.type
+  override protected def info(msg: String): Unit = ()
+  override val universe: U = scala.reflect.runtime.universe
+
+  def syntax[T <: Syntax : universe.TypeTag]: ReifiedSyntax =
+    ReifiedSyntax(implicitly[universe.TypeTag[T]].tpe)
+
+  def callTargets[T <: CallTargets : universe.TypeTag]: ReifiedCallTargets =
+    ReifiedCallTargets(implicitly[universe.TypeTag[T]].tpe)
+}
+
