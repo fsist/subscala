@@ -1,13 +1,13 @@
 package com.fsist.subscala
 
-import com.fsist.subscala.CallTargets.{AllMethodsOf, +}
+import com.fsist.subscala.CallTargets.{MethodsOf, AllMethodsOf, +}
 import shapeless.test.illTyped
 
 object CallTargetsTest {
   // This file doesn't contain any runtime tests; the tests are done at compile time.
 
   def allMethodsOf = {
-    Restrict.targets[String, CallTargets.AllMethodsOf[String]] {
+    Restrict.targets[String, AllMethodsOf[String]] {
       "foo".contains("f")
       "bar".indexOf("b")
       ""
@@ -15,7 +15,7 @@ object CallTargetsTest {
 
     illTyped(
       """
-        Restrict[String, Syntax.All, CallTargets.AllMethodsOf[String]] {
+        Restrict[String, Syntax.All, AllMethodsOf[String]] {
           "foo".foreach(println) // foreach is a not method of String
           ""
         }
@@ -23,7 +23,7 @@ object CallTargetsTest {
   }
 
   def oneMethod = {
-    trait length extends CallTargets.MethodsOf[String] {
+    trait length extends MethodsOf[String] {
       def length(): Int
     }
 
@@ -43,7 +43,7 @@ object CallTargetsTest {
   }
 
   def methodWithParameters = {
-    trait charAt extends CallTargets.MethodsOf[String] {
+    trait charAt extends MethodsOf[String] {
       def charAt(index: Int): Char
     }
     Restrict.targets[Char, charAt] {
@@ -51,7 +51,7 @@ object CallTargetsTest {
     }
   }
 
-  trait ObjectCtor extends CallTargets.MethodsOf[Object] {
+  trait ObjectCtor extends MethodsOf[Object] {
     def `<init>`(): Unit
   }
 
@@ -105,7 +105,7 @@ object CallTargetsTest {
     // Here the actual call target is Function0.apply.
     // Note that the restrictions don't support generic specificity at the time of writing, so we write the generic type
     // Function0 and not the specific Function0[Unit].
-    Restrict[String, Syntax.All, CallTargets.AllMethodsOf[Function0[Unit]]] {
+    Restrict[String, Syntax.All, AllMethodsOf[Function0[Unit]]] {
       val foo = () => ()
       foo()
       ""
@@ -118,12 +118,12 @@ object CallTargetsTest {
     }
     trait Child extends Parent
 
-    Restrict[Unit, Syntax.All, CallTargets.AllMethodsOf[Parent]] {
+    Restrict[Unit, Syntax.All, AllMethodsOf[Parent]] {
       val instance: Parent = ???
       instance.foo()
     }
 
-    Restrict[Unit, Syntax.All, CallTargets.AllMethodsOf[Parent]] {
+    Restrict[Unit, Syntax.All, AllMethodsOf[Parent]] {
       val instance: Parent = ???
       instance.foo()
     }
@@ -139,26 +139,26 @@ object CallTargetsTest {
     trait Child extends Parent
 
     // Explicit parent type
-    Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Parent]]] {
+    Restrict[Parent, Syntax.All, AllMethodsOf[Generic[Int, Long, Parent]]] {
       val instance: Generic[Int, Long, Parent] = ???
       instance.method(1, 2L)
     }
 
     // Explicit child type
-    Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Child]]] {
+    Restrict[Parent, Syntax.All, AllMethodsOf[Generic[Int, Long, Child]]] {
       val instance: Generic[Int, Long, Child] = ???
       instance.method(1, 2L)
     }
 
     // Allow parent type, call child type
-    Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Parent]]] {
+    Restrict[Parent, Syntax.All, AllMethodsOf[Generic[Int, Long, Parent]]] {
       val instance: Generic[Int, Long, Child] = ???
       instance.method(1, 2L)
     }
 
     illTyped(
       """
-        Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Int, Parent]]] {
+        Restrict[Parent, Syntax.All, AllMethodsOf[Generic[Int, Int, Parent]]] {
           val instance: Generic[Int, Long, Parent] = ???
           instance.method(1, 2L)
         }
@@ -167,7 +167,7 @@ object CallTargetsTest {
 
     illTyped(
       """
-        Restrict[Parent, Syntax.All, CallTargets.AllMethodsOf[Generic[Int, Long, Boolean]]] {
+        Restrict[Parent, Syntax.All, AllMethodsOf[Generic[Int, Long, Boolean]]] {
           val instance: Generic[Int, Long, Parent] = ???
           instance.method(1, 2L)
         }
@@ -180,15 +180,15 @@ object CallTargetsTest {
       def method[T](t: T): T
     }
 
-    trait AllowT extends CallTargets.MethodsOf[Generic] {
+    trait AllowT extends MethodsOf[Generic] {
       def method[T](t: T): T
     }
 
-    trait AllowInt extends CallTargets.MethodsOf[Generic] {
+    trait AllowInt extends MethodsOf[Generic] {
       def method(t: Int): Int
     }
 
-    trait AllowString extends CallTargets.MethodsOf[Generic] {
+    trait AllowString extends MethodsOf[Generic] {
       def method(t: String): String
     }
 
@@ -202,19 +202,19 @@ object CallTargetsTest {
     // while we permitted String. To enable this usage Reifier would have to compare actual, unerased types and compare
     // their type args directly, taking into account type bounds.
 
-//    Restrict.targets[String, AllowString] {
-//      val g: Generic = ???
-//      g.method("foo")
-//    }
-//
-//    illTyped(
-//      """
-//        Restrict.targets[Int, AllowInt] {
-//          val g: Generic = ???
-//          g.method(1)
-//        }
-//      """, "Calling method com.fsist.subscala.CallTargetsTest.Generic.method is disallowed"
-//    )
+    //    Restrict.targets[String, AllowString] {
+    //      val g: Generic = ???
+    //      g.method("foo")
+    //    }
+    //
+    //    illTyped(
+    //      """
+    //        Restrict.targets[Int, AllowInt] {
+    //          val g: Generic = ???
+    //          g.method(1)
+    //        }
+    //      """, "Calling method com.fsist.subscala.CallTargetsTest.Generic.method is disallowed"
+    //    )
   }
 
   def callWithVarargs = {
@@ -222,7 +222,7 @@ object CallTargetsTest {
       def method(strings: String*): Unit
     }
 
-    trait Allow extends CallTargets.MethodsOf[Varargs] {
+    trait Allow extends MethodsOf[Varargs] {
       def method(strings: String*): Unit
     }
 
@@ -231,7 +231,7 @@ object CallTargetsTest {
       v.method("a", "b")
     }
 
-    trait AllowTwo extends CallTargets.MethodsOf[Varargs] {
+    trait AllowTwo extends MethodsOf[Varargs] {
       def method(a: String, b: String): Unit
     }
 
@@ -250,11 +250,11 @@ object CallTargetsTest {
       def method(i: Int)(s: String): Int
     }
 
-    trait Allow extends CallTargets.MethodsOf[Trait] {
+    trait Allow extends MethodsOf[Trait] {
       def method(i: Int)(s: String): Int
     }
 
-    trait Partial extends CallTargets.MethodsOf[Trait] {
+    trait Partial extends MethodsOf[Trait] {
       def method(i: Int): String => Int
     }
 
@@ -279,11 +279,11 @@ object CallTargetsTest {
       def method(i: Int): String => Int
     }
 
-    trait Allow extends CallTargets.MethodsOf[Trait] {
+    trait Allow extends MethodsOf[Trait] {
       def method(i: Int): String => Int
     }
 
-    trait AllowParamLists extends CallTargets.MethodsOf[Trait] {
+    trait AllowParamLists extends MethodsOf[Trait] {
       def method(i: Int)(s: String): Int
     }
 
@@ -311,7 +311,100 @@ object CallTargetsTest {
     )
   }
 
-  // TODO call method using argument subtype of expected parameter type
-  // TODO call method with implicit params
-  // TODO test overloading
+  def callWithParamSubtype = {
+    trait Parent
+    trait Child extends Parent
+
+    trait Call {
+      def call(p: Parent): Unit
+    }
+
+    trait Methods extends MethodsOf[Call] {
+      def call(p: Parent): Unit
+    }
+
+    Restrict.targets[Unit, Methods] {
+      val c: Call = ???
+      val child: Child = ???
+      c.call(child)
+    }
+  }
+
+  def parameterSubtypeDoesNotMatchMethod = {
+    trait Parent
+    trait Child extends Parent
+
+    trait Call {
+      def call(p: Parent): Unit
+    }
+
+    trait Methods extends MethodsOf[Call] {
+      def call(p: Child): Unit
+    }
+
+    illTyped(
+      """
+        Restrict.targets[Unit, Methods] {
+          val c: Call = ???
+          val parent: Parent = ???
+          c.call(parent)
+        }
+      """, "Calling method com.fsist.subscala.CallTargetsTest.Call.call is disallowed"
+    )
+  }
+
+  def implicitParamLists = {
+    trait Trait {
+      def method1(implicit i: Int): Unit
+      def method2(i: Int)(implicit s: String): Unit
+    }
+
+    trait Allow extends MethodsOf[Trait] {
+      def method1(implicit i: Int): Unit
+    }
+
+    trait Allow2 extends MethodsOf[Trait] {
+      def method2(i: Int)(implicit s: String): Unit
+    }
+
+    trait AllowExplicit2 extends MethodsOf[Trait] {
+      def method2(i: Int)(s: String): Unit
+    }
+
+    Restrict.targets[Unit, Allow] {
+      val t: Trait = ???
+      t.method1(1)
+
+      implicit val i = 1
+      val _ = t.method1
+    }
+
+    trait AllowExplicit extends MethodsOf[Trait] {
+      def method1(i: Int): Unit
+    }
+
+    Restrict.targets[Unit, AllowExplicit] {
+      val t: Trait = ???
+      t.method1(1)
+
+      implicit val i = 1
+      val _ = t.method1
+    }
+
+    Restrict.targets[Unit, Allow2] {
+      val t: Trait = ???
+      t.method2(1)("")
+
+      implicit val s = ""
+      val _ = t.method2(1)
+    }
+
+    Restrict.targets[Unit, AllowExplicit2] {
+      val t: Trait = ???
+      t.method2(1)("")
+
+      implicit val s = ""
+      val _ = t.method2(1)
+    }
+  }
 }
