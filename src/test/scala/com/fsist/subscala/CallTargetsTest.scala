@@ -407,4 +407,29 @@ object CallTargetsTest {
       val _ = t.method2(1)
     }
   }
+
+  def overloading = {
+    trait Trait {
+      def method(i: Int): Unit
+      def method(s: String): Unit
+    }
+
+    trait AllowInt extends MethodsOf[Trait] {
+      def method(i: Int): Unit
+    }
+
+    Restrict.targets[Unit, AllowInt] {
+      val t: Trait = ???
+      t.method(1)
+    }
+
+    illTyped(
+      """
+        Restrict.targets[Unit, AllowInt] {
+          val t: Trait = ???
+          t.method("")
+        }
+      """, "Calling method com.fsist.subscala.CallTargetsTest.Trait.method is disallowed"
+    )
+  }
 }
