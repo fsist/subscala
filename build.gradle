@@ -30,9 +30,7 @@ dependencies {
   compile 'org.scala-lang:scala-reflect:2.11.6'
   compile 'org.scala-lang:scala-compiler:2.11.6'
 
-  compile 'com.typesafe.scala-logging:scala-logging_2.11:3.1.0'
-  compile 'com.chuusai:shapeless_2.11:2.1.0'
-
+  testCompile 'com.chuusai:shapeless_2.11:2.1.0'
   testCompile 'ch.qos.logback:logback-classic:1.1.2'
   testCompile 'org.scalatest:scalatest_2.11:2.2.1'
   testCompile 'org.pegdown:pegdown:1.4.2'
