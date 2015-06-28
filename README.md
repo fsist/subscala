@@ -45,8 +45,6 @@ val size = Restrict.targets[Int, AllowAugment + AllowSize] {
 
 ```
 
-This project is not yet production ready, and so artifacts are not yet published.
-    
 Use cases include:
  
  * Defining a DSL as a subset of the Scala language (i.e. without a separate parser). 
@@ -54,3 +52,6 @@ Use cases include:
  * Enforcing rules in a codebase such as not using a particular interface which cannot be marked @deprecated.
 
 For usage examples, see the test code.
+
+Artifacts are published on Maven Central; see the github 'releases' tag for the latest version and for changelogs.
+Add dependencies to `com.fsist:subscala_2.11:VERSION` (gradle) or `com.fsist % subscala %% VERSION` (sbt).
