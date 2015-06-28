@@ -53,5 +53,7 @@ Use cases include:
 
 For usage examples, see the test code.
 
+## Artifacts
+
 Artifacts are published on Maven Central; see the github 'releases' tag for the latest version and for changelogs.
 Add dependencies to `com.fsist:subscala_2.11:VERSION` (gradle) or `com.fsist % subscala %% VERSION` (sbt).
